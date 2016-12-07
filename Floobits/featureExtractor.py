@@ -2,6 +2,7 @@
 import collections
 from collections import Counter
 import numpy as np
+import math
 
 #Various feature extractors for DominionMDP
 def newestFeatureExtractor(state, otherPlayerStates=[]):
@@ -28,11 +29,15 @@ def newestFeatureExtractor(state, otherPlayerStates=[]):
     features.append(("vPointsDif" + str(vPointsDif) + "provinces:" + str(numProvinces), 3))
     return features
 
+def computeDeepFeatureLength(max_cards, kingdom):
+    max_turns=100
+    return max_turns + len(kingdom) * max_cards + max_cards + 1
+
 #Various feature extractors for DominionMDP
-def deepFeatureExtractor(state, otherPlayerStates=[], max_turns=50):
+def deepFeatureExtractor(state, otherPlayerStates=[], max_turns=100):
     kingdom, deck, hand, drawPile, discardPile, phase, turn, buys, actions, money, cardsPlayed = state
-    numTurnBuckets = math.ceil(max_turns / turnBucketSize)
-    numFeatures = max_turns + len(kingdom) + 8 # assumes max provinces = 8
+    max_cards = 12
+    numFeatures = computeDeepFeatureLength(max_cards, kingdom)
     features = np.zeros(numFeatures)
     vPoints = cardUtils.computeVictoryPoints(deck)
     maxOtherPlayerVPoints = 0
@@ -41,17 +46,22 @@ def deepFeatureExtractor(state, otherPlayerStates=[], max_turns=50):
         if playerVPoints > maxOtherPlayerVPoints:
             maxOtherPlayerVPoints = playerVPoints
     vPointsDif = vPoints - maxOtherPlayerVPoints
-    #NUMBER OF EACH CARD AND TURN
+    #TURN
     f_ind = 0
-    features[f_ind + turn] = 1
-    f_ind += max_turns 
-    for cardID in deck:
-        features[f_ind + cardID] = deck[cardID]
-    f_ind += len(kingdom)
-    
+    if turn < max_turns:
+        features[f_ind + turn] = 1
+    f_ind += max_turns
+    # NUMBER OF EACH CARD
+    for cardID in kingdom:
+        if deck[cardID] <= max_cards:
+            features[f_ind + deck[cardID]] = 1
+        f_ind += max_cards
+
     #NUM PROVINCES AND VPOINTSDIF
     numProvinces = cardUtils.getNumProvinceCards(kingdom)
-    features.append(("vPointsDif" + str(vPointsDif) + "provinces:" + str(numProvinces), 3))
+    features[f_ind + numProvinces] = 1
+    f_ind += max_cards
+    features[f_ind] = vPointsDif
     return features
 
 def deckProvinceFeatureExtractor(state, otherPlayerStates=[]):

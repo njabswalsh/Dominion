@@ -4,14 +4,21 @@ import cardUtils
 from ExpectimaxActionPhasePlayer import ExpectimaxActionPhasePlayer
 from keras.models import Sequential
 from keras.layers import Dense, Activation
+from random import shuffle
+import numpy as np
+import featureExtractor as fe
 
 # actions: a function that takes a state and returns a list of actions.
 # featureExtractor: a function that takes a state and action and returns a list of (feature name, feature value) pairs.
 # explorationProb: the epsilon value indicating how frequently the policy
 # returns a random action.
-class FinalPlayer(DominionPlayer):
+class DeepPlayer(DominionPlayer):
     def setupModel(self):
         self.gameModel = Sequential()
+        self.gameModel.add(Dense(output_dim=64, input_dim=self.networkInputSize))
+        self.gameModel.add(Activation("relu"))
+        self.gameModel.add(Dense(output_dim=1))
+        self.gameModel.add(Activation("softmax"))
 
     def __init__(self, mdp, featureExtractor, explorationProb=0.2, actionPlayer=None, learning=False):
         self.verbose = False
@@ -21,7 +28,11 @@ class FinalPlayer(DominionPlayer):
         self.actionPlayer = actionPlayer
         self.learning = learning
         self.allStates = []
+        self.featureExtractor = featureExtractor
+        self.networkInputSize = fe.computeDeepFeatureLength(12, mdp.startKingdom)
+        print self.networkInputSize
         self.setupModel()
+        self.discount = 0.9
 
     # This algorithm will produce an action given a state.
     # Here we use the epsilon-greedy algorithm: with probability
@@ -45,7 +56,14 @@ class FinalPlayer(DominionPlayer):
             bestAction = None
             bestActionScore = float('-inf')
             for action in actions:
-                actionScore = gameModel
+                actionScore = 0
+                statesAndProbs = self.mdp.succAndProbs(state, action, otherPlayerStates)
+                for newState, prob in statesAndProbs:
+                    if self.mdp.endOfGame(newState):
+                        actionScore += self.mdp.computeReward(newState, otherPlayerStates) * prob
+                    else:
+                        feature_vector = self.featureExtractor(state, otherPlayerStates)
+                        actionScore += self.gameModel.predict(feature_vector) * prob
                 if self.verbose:
                     print "Action: ",action, "Score:",actionScore
                     
@@ -67,14 +85,15 @@ class FinalPlayer(DominionPlayer):
         return
 
     def backpropagateReward(self, reward, allStates):
-        for state, otherPlayerStates in allStates:
-            for feature, value in self.featureExtractor(state, otherPlayerStates):
-                if feature in self.weights:
-                    timesVisited, weight = self.weights[feature]
-                    newWeight = ((timesVisited + 0.0) / (timesVisited + 1)) * weight + (reward / (timesVisited + 1))
-                    self.weights[feature] = (timesVisited + 1, newWeight)
-                else:
-                    self.weights[feature] = (1, reward)
+        last_turn = allStates[-1][6]
+        goals = []
+        feature_vectors = []
+        for i in shuffle(range(len(allStates))):
+            state, otherPlayerStates = allStates[i]
+            goals.append(reward * (self.discount ** (last_turn - state[6]))) 
+            feature_vector = self.featureExtractor(state, otherPlayerStates)
+            feature_vectors.append(feature_vector)
+        model.train_on_batch(feature_vectors, goals)
 
     def endOfGame(self, reward):
         if self.learning:

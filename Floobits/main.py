@@ -13,6 +13,7 @@ from HumanPlayer import HumanPlayer
 from ExpensiveActionPlayer import ExpensiveActionPlayer
 from RandomActionPlayer import RandomActionPlayer
 from FinalPlayer import FinalPlayer
+from DeepPlayer import DeepPlayer
 import featureExtractor
 import util
 import testActionPlayer
@@ -141,27 +142,46 @@ def trainFinalPlayer():
         for playerID in range(len(players)):
             if (players[playerID].cachingWeights): 
                 cacheWeightsBackpropagate.bpcacheWeights(dominion.startKingdom, players[playerID].weights, players[playerID].cacheStringKey)
-print "########################################################"
-print "Note: You can select the starting kingdom in main.py"
-print "0: Play game against Human player"
-print "1: Test Final version against Big Money"
-print "2: Train Final version against itself"
-print "3: Test the action player"
-while True:
-    actionChoice = raw_input("Enter the number of your choice (q to quit): ")
-    if "q" in actionChoice:
-        exit()
-    if actionChoice == "0":
-        playGameAgainstHuman()
-        break
-    if actionChoice == "1":
-        testFinalPlayer()
-        break
-    if actionChoice == "2":
-        trainFinalPlayer()
-        break
-    if actionChoice == "3":
-        testTheActionPlayer()
-        break
-    else:
-        print "That is not a valid action. Try again."
+
+def trainDeepPlayer():
+    for _ in xrange(trainingRuns):
+        actionPlayer = ExpectimaxActionPhasePlayer(dominion)
+        deepPlayer = DeepPlayer(dominion, featureExtractor.deepFeatureExtractor, explorationProb=0.2, actionPlayer=actionPlayer, learning=True)
+        deepPlayer2 = DeepPlayer(dominion, featureExtractor.deepFeatureExtractor, explorationProb=0.2, actionPlayer=actionPlayer, learning=True)
+    
+        players = []
+        players.append(deepPlayer)
+        players.append(deepPlayer2)
+    
+        tempRewardFunction = dominion.computeReward
+        dominion.computeReward = util.learningComputeReward
+    
+        results = simulateDominion(dominion, players, numGames=gamesPerTrainingRun, maxTurns=100, verbose=False)
+        util.printGameSummary(results, players)
+        allGameRewards, allGameTurns = results
+
+trainDeepPlayer()
+# print "########################################################"
+# print "Note: You can select the starting kingdom in main.py"
+# print "0: Play game against Human player"
+# print "1: Test Final version against Big Money"
+# print "2: Train Final version against itself"
+# print "3: Test the action player"
+# while True:
+#     actionChoice = raw_input("Enter the number of your choice (q to quit): ")
+#     if "q" in actionChoice:
+#         exit()
+#     if actionChoice == "0":
+#         playGameAgainstHuman()
+#         break
+#     if actionChoice == "1":
+#         testFinalPlayer()
+#         break
+#     if actionChoice == "2":
+#         trainFinalPlayer()
+#         break
+#     if actionChoice == "3":
+#         testTheActionPlayer()
+#         break
+#     else:
+#         print "That is not a valid action. Try again."
